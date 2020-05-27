@@ -1,0 +1,21 @@
+{
+  "name": "kontent-data-generator",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "help": "node src/index.js --help",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@kentico/kontent-management": "^0.3.19",
+    "axios": "^0.19.2",
+    "dotenv": "^8.2.0",
+    "glob": "^7.1.6",
+    "rxjs": "^6.5.5",
+    "yargs": "^15.3.1"
+  }
+}
