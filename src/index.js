@@ -93,20 +93,20 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
         console.error("cannot read the file, something goes wrong with the file", err);
       }
       if (argv.verbose) {
-        console.info(`Importing file: ${file}`)
+        console.info(`Importing file:${file}`)
       }
 
-      var items = JSON.parse(data);
+      const items = JSON.parse(data);
 
       for (const article of items) {
         if (argv.verbose) {
-          console.info(`Importing item: ${article.title}`)
+          console.info(`Importing item: (${article.articleNumber}) ${article.title}`)
         }
 
         try {
 
           const assetData = await getAssetDataDataFromUrl(article.image.url);
-          var assetObject = await client.uploadBinaryFile().withData(assetData).toPromise();
+          const assetObject = await client.uploadBinaryFile().withData(assetData).toPromise();
 
           const asset = await client.addAsset()
             .withData({
@@ -161,6 +161,15 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
               }
             ])
             .toPromise();
+
+            await client
+              .publishOrScheduleLanguageVariant()
+              .byItemId(languageVariant.data.item.id)
+              .byLanguageId(languageVariant.data.language.id)
+              .withoutData()
+              .toPromise();
+
+
         } catch (error) {
           console.error(JSON.stringify(error, null, 2));
         }
