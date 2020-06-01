@@ -28,3 +28,4 @@ Basically use data from [/articles](/articles) and import them to prepared proje
    ```
 
 This project then could be used in the `kontent-benchmark-site`.
+ > If you want to send all output to the file (the logs could be quite long): `npm start 1> out.txt 2>&1 -- -v`
