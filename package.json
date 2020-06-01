@@ -11,6 +11,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@kentico/kontent-delivery": "^9.1.1",
     "@kentico/kontent-management": "^0.3.19",
     "axios": "^0.19.2",
     "dotenv": "^8.2.0",

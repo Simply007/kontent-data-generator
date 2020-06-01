@@ -4,6 +4,7 @@ const glob = require("glob");
 const fs = require("fs");
 const axios = require("axios");
 const { ManagementClient } = require("@kentico/kontent-management");
+const { DeliveryClient } = require("@kentico/kontent-delivery");
 
 require('dotenv').config()
 
@@ -30,6 +31,50 @@ const getAssetDataDataFromUrl = async (url, enableLog) => {
   }
 }
 
+const findMissingArticles = async () => {
+  const dClient = new DeliveryClient({ projectId: argv.projectId })
+
+  if (argv.verbose) {
+    console.info(`Starting verifying.`);
+  }
+
+  const allItems = await dClient
+    .itemsFeedAll()
+    .languageParameter(argv.language)
+    .type(argv.type)
+    .toPromise()
+    .then(result => result.items);
+
+  if (allItems.length === 0) {
+    console.log(`Specified project does not contains and item of type ${argv.type}`);
+    return 1;
+  };
+
+  const folderSplit = argv.folder.split("/");
+  const articleCount = Number(folderSplit[folderSplit.length - 1]);
+
+  const missingArticles = [];
+  for (let articleNumberToCheck = 1; articleNumberToCheck <= articleCount; articleNumberToCheck++) {
+    const currentArticle = allItems
+      .find(item => item.article_number.value === articleNumberToCheck);
+
+    if (!currentArticle) {
+      console.log(`Article not found: ${articleNumberToCheck}`)
+      missingArticles.push(articleNumberToCheck);
+      continue;
+    }
+
+    if (currentArticle.image.value.length !== 1) {
+      console.log(`Article missing image: ${articleNumberToCheck}`)
+      continue;
+    }
+
+    console.log(`Article OK: ${articleNumberToCheck}`);
+  }
+
+  return missingArticles;
+}
+
 
 const argv = require('yargs') // eslint-disable-line
   .option('verbose', {
@@ -46,7 +91,7 @@ const argv = require('yargs') // eslint-disable-line
   .option('managementKey', {
     alias: 'm',
     type: 'string',
-    description: 'managementKey to environment var [KONTENT_DATA_FOLDER] by default',
+    description: 'managementKey to environment var [KONTENT_MANAGEMENT_KEY] by default',
     default: process.env.KONTENT_MANAGEMENT_KEY
   })
   .option('folder', {
@@ -67,16 +112,28 @@ const argv = require('yargs') // eslint-disable-line
     description: 'Kontent type to import to environment var [KONTENT_TYPE] by default',
     default: process.env.KONTENT_TYPE
   })
+  .option('justMissing', {
+    alias: 'j',
+    type: 'boolean',
+    description: 'Verify if the content item is in good shape - logs problems to the log and them import just faulty items.',
+  })
   .help()
   .argv;
 
-const client = new ManagementClient({
+
+
+const mClient = new ManagementClient({
   projectId: argv.projectId, // id of your Kentico Kontent project
   apiKey: argv.managementKey, // Content management API token
 });
 
-
 glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or folders if you want: example json/**/*.json
+
+  let missingArticles = [];
+  if (argv.justMissing) {
+    missingArticles = await findMissingArticles();
+  }
+
   if (argv.verbose) {
     console.info(`Starting generation at: ${new Date().toISOString()}`)
   }
@@ -88,6 +145,7 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
     console.info(`Loading files: ${files}`)
   }
   for (const file of files) {
+
     fs.readFile(file, 'utf8', async (err, data) => { // Read each file
       if (err) {
         console.error("cannot read the file, something goes wrong with the file", err);
@@ -99,6 +157,17 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
       const items = JSON.parse(data);
 
       for (const article of items) {
+
+        if (argv.justMissing) {
+          if (missingArticles.indexOf(article.articleNumber) < 0) {
+            if (argv.verbose) {
+              console.info(`Skipping item: (${article.articleNumber}) ${article.title}`)
+            }
+            continue;
+          }
+        }
+
+
         if (argv.verbose) {
           console.info(`Importing item: (${article.articleNumber}) ${article.title}`)
         }
@@ -106,9 +175,9 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
         try {
 
           const assetData = await getAssetDataDataFromUrl(article.image.url);
-          const assetObject = await client.uploadBinaryFile().withData(assetData).toPromise();
+          const assetObject = await mClient.uploadBinaryFile().withData(assetData).toPromise();
 
-          const asset = await client.addAsset()
+          const asset = await mClient.addAsset()
             .withData({
               descriptions: [{
                 language: {
@@ -124,7 +193,7 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
             .toPromise();
 
 
-          const item = await client.addContentItem()
+          const item = await mClient.addContentItem()
             .withData(
               {
                 external_id: undefined,
@@ -137,7 +206,7 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
             )
             .toPromise();
 
-          const languageVariant = await client.upsertLanguageVariant()
+          const languageVariant = await mClient.upsertLanguageVariant()
             .byItemCodename(item.data.codename)
             .byLanguageCodename(argv.language)
             .withElementCodenames([
@@ -162,12 +231,12 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
             ])
             .toPromise();
 
-            await client
-              .publishOrScheduleLanguageVariant()
-              .byItemId(languageVariant.data.item.id)
-              .byLanguageId(languageVariant.data.language.id)
-              .withoutData()
-              .toPromise();
+          await mClient
+            .publishOrScheduleLanguageVariant()
+            .byItemId(languageVariant.data.item.id)
+            .byLanguageId(languageVariant.data.language.id)
+            .withoutData()
+            .toPromise();
 
 
         } catch (error) {
@@ -177,7 +246,4 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
     });
   }
 });
-
-
-
 
