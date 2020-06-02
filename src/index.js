@@ -240,6 +240,9 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
 
 
         } catch (error) {
+          if (error && error.config && error.config.data) {
+            delete error.config.data;
+          }
           console.error(JSON.stringify(error, null, 2));
         }
       }
