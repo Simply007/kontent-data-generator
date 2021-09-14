@@ -8,7 +8,20 @@ const { DeliveryClient } = require("@kentico/kontent-delivery");
 
 require('dotenv').config()
 
-const getAssetDataDataFromUrl = async (url) => {
+let assetsDataCache = [];
+
+const getAssetData = async (url) => {
+  if (assetsDataCache[url] !== undefined) {
+    logInfo(`Cache hit for asset: ${url}`);
+    return assetsDataCache[url];
+  }
+
+  assetsDataCache[url] = getAssetDataFromUrl(url);
+
+  return assetsDataCache[url];
+}
+
+const getAssetDataFromUrl = async (url) => {
   logInfo(`Downloading asset: ${url}`);
 
   const urlParts = url.split('/');
@@ -178,7 +191,7 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
         try {
 
           const assetUrl = (argv.useAsset === undefined) ? article.image.url : argv.useAsset;
-          const assetData = await getAssetDataDataFromUrl(assetUrl);
+          const assetData = await getAssetData(assetUrl);
 
           logInfo('Uploading binary...');
           const assetObject = await mClient.uploadBinaryFile().withData(assetData).toPromise();
