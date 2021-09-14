@@ -8,10 +8,8 @@ const { DeliveryClient } = require("@kentico/kontent-delivery");
 
 require('dotenv').config()
 
-const getAssetDataDataFromUrl = async (url, enableLog) => {
-  if (enableLog) {
-    console.log(`Downloading asset: ${url}`);
-  }
+const getAssetDataDataFromUrl = async (url) => {
+  logInfo(`Downloading asset: ${url}`);
 
   const urlParts = url.split('/');
 
@@ -19,9 +17,7 @@ const getAssetDataDataFromUrl = async (url, enableLog) => {
     responseType: 'arraybuffer',
   });
 
-  if (enableLog) {
-    console.log(`Downloading asset completed: ${url}`);
-  }
+  logInfo(`Downloading asset completed: ${url}`);
 
   return {
     binaryData: response.data,
@@ -120,7 +116,11 @@ const argv = require('yargs') // eslint-disable-line
   .help()
   .argv;
 
-
+const logInfo = (msg) => {
+  if (argv.verbose) {
+    console.info(`${new Date().toISOString()} ${msg}`);
+  }
+}
 
 const mClient = new ManagementClient({
   projectId: argv.projectId, // id of your Kentico Kontent project
@@ -134,25 +134,23 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
     missingArticles = await findMissingArticles();
   }
 
-  if (argv.verbose) {
-    console.info(`Starting generation at: ${new Date().toISOString()}`)
-  }
+  logInfo(`Starting generation at: ${new Date().toISOString()}`);
 
   if (err) {
-    console.log("cannot read the folder, something goes wrong with glob", err);
+    console.error("cannot read the folder, something goes wrong with glob", err);
+    return;
   }
-  if (argv.verbose) {
-    console.info(`Loading files: ${files}`)
-  }
+
+  logInfo(`Loading files: ${files}`);
+
   for (const file of files) {
 
     fs.readFile(file, 'utf8', async (err, data) => { // Read each file
       if (err) {
         console.error("cannot read the file, something goes wrong with the file", err);
       }
-      if (argv.verbose) {
-        console.info(`Importing file:${file}`)
-      }
+
+      logInfo(`Importing file:${file}`);
 
       const items = JSON.parse(data);
 
@@ -160,23 +158,22 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
 
         if (argv.justMissing) {
           if (missingArticles.indexOf(article.articleNumber) < 0) {
-            if (argv.verbose) {
-              console.info(`Skipping item: (${article.articleNumber}) ${article.title}`)
-            }
+            logInfo(`Skipping item: (${article.articleNumber}) ${article.title}`);
             continue;
           }
         }
 
-
-        if (argv.verbose) {
-          console.info(`Importing item: (${article.articleNumber}) ${article.title}`)
-        }
+        logInfo(`Importing item: (${article.articleNumber}) ${article.title}`);
 
         try {
 
           const assetData = await getAssetDataDataFromUrl(article.image.url);
-          const assetObject = await mClient.uploadBinaryFile().withData(assetData).toPromise();
 
+          logInfo('Uploading binary...');
+          const assetObject = await mClient.uploadBinaryFile().withData(assetData).toPromise();
+          logInfo('Upload binary finished');
+
+          logInfo('Add asset...');
           const asset = await mClient.addAsset()
             .withData({
               descriptions: [{
@@ -192,6 +189,7 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
             })
             .toPromise();
 
+          logInfo('Add asset finished');
 
           const item = await mClient.addContentItem()
             .withData(
@@ -206,6 +204,7 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
             )
             .toPromise();
 
+          logInfo('Add language variant...');
           const languageVariant = await mClient.upsertLanguageVariant()
             .byItemCodename(item.data.codename)
             .byLanguageCodename(argv.language)
@@ -230,13 +229,16 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
               }
             ])
             .toPromise();
+          logInfo('Add language variant finished');
 
+          logInfo('Publish variant...');
           await mClient
             .publishOrScheduleLanguageVariant()
             .byItemId(languageVariant.data.item.id)
             .byLanguageId(languageVariant.data.language.id)
             .withoutData()
             .toPromise();
+          logInfo('Publish variant finished');
 
 
         } catch (error) {
