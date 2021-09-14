@@ -118,6 +118,11 @@ const argv = require('yargs') // eslint-disable-line
     type: 'boolean',
     description: 'Ignores external id of assets - useful for the rerun of the same source files.'
   })
+  .option('useAsset', {
+    alias: 'a',
+    type: 'string',
+    description: 'Asset url - overwrites the assets from source files with this value.',
+  })
   .help()
   .argv;
 
@@ -172,7 +177,8 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
 
         try {
 
-          const assetData = await getAssetDataDataFromUrl(article.image.url);
+          const assetUrl = (argv.useAsset === undefined) ? article.image.url : argv.useAsset;
+          const assetData = await getAssetDataDataFromUrl(assetUrl);
 
           logInfo('Uploading binary...');
           const assetObject = await mClient.uploadBinaryFile().withData(assetData).toPromise();
