@@ -113,6 +113,11 @@ const argv = require('yargs') // eslint-disable-line
     type: 'boolean',
     description: 'Verify if the content item is in good shape - logs problems to the log and them import just faulty items.',
   })
+  .option('ignoreExternalId', {
+    alias: 'i',
+    type: 'boolean',
+    description: 'Ignores external id of assets - useful for the rerun of the same source files.'
+  })
   .help()
   .argv;
 
@@ -182,13 +187,12 @@ glob(`${argv.folder}/*.json`, async (err, files) => { // read the folder or fold
                 },
                 description: `Image for article ${article.title}`
               }],
-              external_id: article.image.id,
+              external_id: (argv.ignoreExternalId) ? undefined : article.image.id,
               file_reference: {
                 ...assetObject.data
               }
             })
             .toPromise();
-
           logInfo('Add asset finished');
 
           const item = await mClient.addContentItem()
